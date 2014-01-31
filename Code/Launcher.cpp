@@ -5,11 +5,11 @@
 #include "resource.h"
 
 #include "launcher.h"
-//#include "Vector.h"
+#include "Vector.h"
 //#include "D3DMgr.h" 
 #include "log.h"
 #include "Globals.h"
-//#include "LowInput.h"
+#include "LowInput.h"
 //#include "MemoryMgr.h"
 //#include "ModesMgr.h"
 //#include "Graphics.h"
@@ -23,7 +23,7 @@
 //#include "MusicMgr.h"
 //#include "2DEngine.h"
 //#include "PerfMeterMgr.h"
-//#include "SysHRTimer.h"
+#include "SysHRTimer.h"
 //#include "InitSplashScreen.h"
 #include "FilePack.h"
 //#include "NetMgr.h"
@@ -57,7 +57,7 @@ HWND       hWndGame;
 
 
 //CD3DMgr*            g_pD3DMgr           = NULL;
-//CLowInput*          g_pLowInput         = NULL;
+CLowInput*          g_pLowInput         = NULL;
 //CModesMgr*          g_pModesMgr         = NULL;
 //CGraphics*          g_pGraphics         = NULL;
 //CSetup*             g_pSetup            = NULL;
@@ -73,7 +73,7 @@ HWND       hWndGame;
 //C2DEngine*          g_p2DEngine         = NULL;
 //CDebugInfoMgr*      g_pDebugInfoMgr     = NULL;
 //CPerfMeterMgr*      g_pPerfMeterMgr     = NULL;
-//CSysHRTimer*        g_pSysHRTimer       = NULL;
+CSysHRTimer*        g_pSysHRTimer       = NULL;
 CFilePack*          g_pFilePack         = NULL;
 //CNetMgr*            g_pNetMgr           = NULL;
 //CClient*            g_pClient           = NULL;
@@ -127,6 +127,8 @@ int APIENTRY WinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPTSTR _lpC
 
 //			if (g_pLowInput->IsKeyKeptPressed( LT_LALT ) && g_pLowInput->IsKeyKeptPressed( LT_INTRO ) && !bQuit)
 //				SwitchWindowMode();
+			if (g_pLowInput->IsKeyPressed( LT_ESC ))
+				bQuit = true;
 		}
 
 	}
@@ -152,8 +154,8 @@ ERetVal InitProgram( HINSTANCE _hInstance, int _nCmdShow  )
 
 	if (eRetVal==RET_OK)
 	{
-//		g_pSysHRTimer   = NEW CSysHRTimer;
-//		eRetVal         = g_pSysHRTimer->Init();
+		g_pSysHRTimer   = NEW CSysHRTimer;
+		eRetVal         = g_pSysHRTimer->Init();
 	}
 
 	if (eRetVal==RET_OK)
@@ -198,8 +200,8 @@ ERetVal InitProgram( HINSTANCE _hInstance, int _nCmdShow  )
 //		eRetVal = g_pMsgMgr->Init();   
 	}     
 	
-	//..... crear ventana
-//	if (eRetVal==RET_OK)
+	//..... 
+	if (eRetVal==RET_OK)
 	{
 		hWnd            = CreateGameWindow( _hInstance, _nCmdShow );
 		hWndGame        = hWnd;
@@ -217,9 +219,10 @@ ERetVal InitProgram( HINSTANCE _hInstance, int _nCmdShow  )
 	//.....low input. is created here, but is initialiced inside g_pD3DMgr initialization................
 	if (eRetVal==RET_OK)
 	{
-//		g_pLowInput   = NEW CLowInput;
-//		g_pLowInput->WinInit( (uint)_hInstance, g_hGameWindow );
-//		g_pLowInput->SetUsarMouse( true );
+		g_pLowInput   = NEW CLowInput;
+		g_pLowInput->WinInit( (uint)_hInstance, g_hGameWindow );
+		g_pLowInput->DXInit();
+		g_pLowInput->SetUsingMouse( true );
 	}
 
 	//.......direct 3d.................
@@ -359,7 +362,7 @@ void EndProgram()
 //	DISPOSEIF( g_pUserInput );
 //	DISPOSEIF( g_p2DEngine );
 //	DISPOSEIF( g_pGraphics );
-//	DISPOSEIF( g_pLowInput ); 
+	SAFE_DELETE( g_pLowInput ); 
 //	DISPOSEIF( g_pNodeMgr );
 //	DISPOSEIF( g_pD3DMgr );
 //	DISPOSEIF( g_pNetMgr );
@@ -368,7 +371,7 @@ void EndProgram()
 //	DISPOSEIF( g_pStringsMgr );
 //	DISPOSEIF( g_pSetup );
 //	DISPOSEIF( g_pPerfMeterMgr );
-//	DISPOSEIF( g_pSysHRTimer );
+	SAFE_DELETE( g_pSysHRTimer );
 //	CDataTables::End();
 //	g_MemoryMgr.End();
 
@@ -528,8 +531,8 @@ LRESULT CALLBACK WndProc(HWND _hWnd, UINT _uMessage, WPARAM _wParam, LPARAM _lPa
 
 	case WM_SETFOCUS:
 		{
-//			if (g_pLowInput)
-//				g_pLowInput->NotifyWindowSetFocus();
+			if (g_pLowInput)
+				g_pLowInput->NotifyWindowSetFocus();
 //			if (g_pModesMgr)
 //				g_pModesMgr->NotifyWindowSetFocus();
 			break;
@@ -540,22 +543,22 @@ LRESULT CALLBACK WndProc(HWND _hWnd, UINT _uMessage, WPARAM _wParam, LPARAM _lPa
 		{
 //			if (g_pModesMgr)
 //				g_pModesMgr->NotifyWindowLostFocus();
-//			if (g_pLowInput)
-//				g_pLowInput->NotifyWindowLostFocus();
+			if (g_pLowInput)
+				g_pLowInput->NotifyWindowLostFocus();
 			break;
 		}
 
 	case WM_CHAR:
 		{
-//			if (g_pLowInput)
-//				g_pLowInput->AddCharToHLBuffer( _wParam );
+			if (g_pLowInput)
+				g_pLowInput->AddCharToHLBuffer( _wParam );
 			break;
 		}
 
 	case WM_KEYDOWN:
 		{
-//			if (g_pLowInput)
-//				g_pLowInput->AddVKeyToHLBuffer( _wParam );
+			if (g_pLowInput)
+				g_pLowInput->AddVKeyToHLBuffer( _wParam );
 			break;
 		}
 

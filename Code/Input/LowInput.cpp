@@ -279,65 +279,65 @@ ERetVal CLowInput::AcquireMouse()
 
 //////////////////////////////////////////////////////////////////////////
 
-void CLowInput::ReadTKeyboard()
+void CLowInput::ReadKeyboard()
 {
-		//...clear "click" flag on all keys that had it
-		for (int i=0; i<m_iNumKeysToCleanClick; i++)
-			m_aKeysState[ m_aToCleanClick[i] ].m_bClick = false;
-		m_iNumKeysToCleanClick = 0;        
+	//...clear "click" flag on all keys that had it
+	for (int i=0; i<m_iNumKeysToCleanClick; i++)
+		m_aKeysState[ m_aToCleanClick[i] ].m_bClick = false;
+	m_iNumKeysToCleanClick = 0;        
 
-		if (m_pDeviceKeyboard)
+	if (m_pDeviceKeyboard)
+	{
+		//....read data from direct input
+		ERetVal eRetVal = RET_OK;
+		AcquireKeyboard();
+		static DIDEVICEOBJECTDATA Buffer[ KEYBOARD_BUFFER_SIZE_DIRECTX ];
+		DWORD uNumItems = KEYBOARD_BUFFER_SIZE_DIRECTX;
+		HRESULT hr = m_pDeviceKeyboard->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), Buffer, &uNumItems, 0 );
+		if (hr==DI_BUFFEROVERFLOW)
 		{
-			//....read data from direct input
-			ERetVal eRetVal = RET_OK;
-			AdquirirTeclado();
-			static DIDEVICEOBJECTDATA Buffer[ KEYBOARD_BUFFER_SIZE_DIRECTX ];
-			DWORD uNumItems = KEYBOARD_BUFFER_SIZE_DIRECTX;
-			HRESULT hr = m_pDeviceKeyboard->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), Buffer, &uNumItems, 0 );
-			if (hr==DI_BUFFEROVERFLOW)
+			ASSERTM_ONCE( false, ( "CLowInput::ReadTeclado() -> The DirectX buffer for keyboard input has suffered an overflow. Change the define, caraculo" ));
+		}
+		else 
+			if (hr==DIERR_NOTACQUIRED)
 			{
-				ASSERTM_ONCE( false, ( "CLowInput::ReadTeclado() -> The DirectX buffer for keyboard input has suffered an overflow. Change the define, caraculo" ));
+				eRetVal = RET_ERR;   //...does not call CHECKDXERROR because this is normal, it can happen when the windows lose the focus
 			}
-			else 
-				if (hr==DIERR_NOTACQUIRED)
+			else
+				eRetVal = CHECKDXERROR( hr, F_GETDEVICEDATA );
+								
+		if (m_bPendingKeyboardFlush && eRetVal==RET_OK)
+		{
+			KeyboardFlush();   // to make sure everything is cleared
+			eRetVal = RET_ERR;
+		}
+								
+								
+		//...............read the buffer, one element each time.
+		if (eRetVal==RET_OK)
+		{
+			for (uint i=0; i<uNumItems; i++)
+			{
+				uint uDXCode    = Buffer[i].dwOfs;
+				bool bPressed   = ( Buffer[i].dwData & 0x80 ) != 0;
+				EKey eKey       = m_KeysMgr.TransDXKeyboardToKey( uDXCode );
+								
+				if (bPressed) 
 				{
-					eRetVal = RET_ERR;   //...does not call CHECKDXERROR because this is normal, it can happen when the windows lose the focus
+					m_aKeysState[ eKey ].m_bClick       = true; 
+					m_aKeysState[ eKey ].m_bHold        = true; 
+					m_aKeysState[ eKey ].m_uTimePressed = Buffer[i].dwTimeStamp;
+					m_aToCleanClick[ m_iNumKeysToCleanClick ] = eKey;
+					m_iNumKeysToCleanClick++;
+					if (m_KeysMgr.KeyIsBuffereable( eKey ))
+						PushToBuffer( eKey );
 				}
 				else
-					eRetVal = CHECKDXERROR( hr, F_GETDEVICEDATA );
-								
-			if (m_bPendingKeyboardFlush && eRetVal==RET_OK)
-			{
-				KeyboardFlush();   // to make sure everything is cleared
-				eRetVal = RET_ERR;
-			}
-								
-								
-			//...............read the buffer, one element each time.
-			if (eRetVal==RET_OK)
-			{
-				for (uint i=0; i<uNumItems; i++)
-				{
-					uint uDXCode    = Buffer[i].dwOfs;
-					bool bPressed   = ( Buffer[i].dwData & 0x80 ) != 0;
-					EKey eKey       = m_KeysMgr.TransDXKeyboardToKey( uDXCode );
-								
-					if (bPressed) 
-					{
-						m_aKeysState[ eKey ].m_bClick       = true; 
-						m_aKeysState[ eKey ].m_bHold        = true; 
-						m_aKeysState[ eKey ].m_uTimePressed = Buffer[i].dwTimeStamp;
-						m_aToCleanClick[ m_iNumKeysToCleanClick ] = eKey;
-						m_iNumKeysToCleanClick++;
-						if (m_KeysMgr.KeyIsBuffereable( eKey ))
-							PushToBuffer( eKey );
-					}
-					else
-						m_aKeysState[ eKey ].m_bHold    = false; 
+					m_aKeysState[ eKey ].m_bHold    = false; 
 										
-					AddEventKey( eKey, Buffer[i].dwTimeStamp );                    
-				}
-			}            
+				AddEventKey( eKey, Buffer[i].dwTimeStamp );                    
+			}
+		}            
 	}
 }    
 		
@@ -482,7 +482,7 @@ void CLowInput::SetUsingMouse( bool bUsar )
 		}
 		else //...
 		{
-			AdquirirMouse();
+			AcquireMouse();
 			m_bUsingMouse = true;
 		}
 				
@@ -546,8 +546,8 @@ void CLowInput::ReadMouse()
 				if (uDXCode==DIMOFS_X)  // mouse leftright
 				{
 					int iMove = int(Buffer[i].dwData);
-					if (g_pD3DMgr->EstaEnFullScreen())
-						iMove = int (iMove * g_pSetup->GetInfo().m_fMouseSpeed);
+//					if (g_pD3DMgr->EstaEnFullScreen())
+//						iMove = int (iMove * g_pSetup->GetInfo().m_fMouseSpeed);
 					m_iMouseX += iMove;
 					CheckDrag( Buffer[i].dwTimeStamp, iMove );
 					bMouseMoved = true;
@@ -582,7 +582,7 @@ void CLowInput::ReadMouse()
 						m_aToCleanClick[ m_iNumKeysToCleanClick ] = eKey;
 						m_iNumKeysToCleanClick++;
 						if (m_KeysMgr.KeyIsBuffereable( eKey ))
-							MeterEnBuffer( eKey );
+							PushToBuffer( eKey );
 														
 						//...check if should enter the pre-dragging mode (is in predragging mode until there is enough time with the key pressed)
 						if (!m_bDragging)

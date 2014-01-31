@@ -44,6 +44,7 @@ class CLowInput
 																	CLowInput               ();
 																	~CLowInput              () { End(); }
 			void                        WinInit                 ( uint hInst, uint hWnd );
+			ERetVal                     DXInit                  ();
 			void                        Reset                   ();
 
 			void                        Run                     ();
@@ -91,7 +92,6 @@ class CLowInput
 	private:
 
 			void                        End                     ();
-			ERetVal                     DXInit                  ();
 			void                        ReadKeyboard            ();
 			ERetVal                     AcquireKeyboard         ();        
 			void                        PushToBuffer            ( EKey _EKey );
