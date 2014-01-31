@@ -18,7 +18,7 @@
 
 #define KEYBOARD_BUFFER_SIZE_DIRECTX    256     // defines the internal buffer size that DX will use for to store buffered data
 #define MOUSE_BUFFER_SIZE_DIRECTX       1024    // defines the internal buffer size that DX will use for to store buffered data
-//#define TIME_FOR_STROKE                 250     // max time (ms) between press-release of a key for to produce an EV_KEY_STROKE event.
+//#define TIME_FOR_STROKE                 250     // max time (ms) between press-release of a key to produce an EV_KEY_STROKE event.
 #define TIME_FOR_DOUBLECLICK            300     // max time (ms) betwen clicks to make a doubleclick event
 #define TIME_FOR_DRAG                   500     // time (ms) that a mouse button must be pressed to start dragging (if not moving)
 #define MOUSEMOVE_FOR_DRAG              2       // minimun movement that makes the mouse draging starts (it can be started also when there is a movement past the STROKE time)
@@ -477,7 +477,7 @@ void CLowInput::SetUsingMouse( bool bUsar )
 		{
 			hr = m_pDeviceMouse->Unacquire();
 			if (hr!=DI_NOEFFECT)
-					CHECKDXERROR( hr, F_UNACQUIRE );
+				CHECKDXERROR( hr, F_UNACQUIRE );
 			m_bUsingMouse = false;
 		}
 		else //...
@@ -505,328 +505,293 @@ void CLowInput::ReadMouse()
 		
 	m_bStartPreDragging = false;
 		
-	//....lee datos de direct input
+	//....read data from direct input
 	if (m_pDeviceMouse)
 	{
-			//....lee datos de direct input
-			ERetVal eRetVal = RET_OK;
-			AdquirirMouse();
-			static DIDEVICEOBJECTDATA Buffer[ MOUSE_BUFFER_SIZE_DIRECTX ];
-			DWORD uNumItems = MOUSE_BUFFER_SIZE_DIRECTX;
-			hr = m_pDeviceMouse->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), Buffer, &uNumItems, 0 );
+		ERetVal eRetVal = RET_OK;
+		AcquireMouse();
+		static DIDEVICEOBJECTDATA Buffer[ MOUSE_BUFFER_SIZE_DIRECTX ];
+		DWORD uNumItems = MOUSE_BUFFER_SIZE_DIRECTX;
+		hr = m_pDeviceMouse->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), Buffer, &uNumItems, 0 );
 						
-			if (eRetVal==RET_OK)
+		if (eRetVal==RET_OK)
+		{
+			if (hr==DI_BUFFEROVERFLOW)
 			{
-					if (hr==DI_BUFFEROVERFLOW)
-					{
-							ASSERTM_ONCE( false, ("CLowInput::ReadTeclado() -> The DirectX buffer for mouse input has suffered an overflow. Change the define, carapedo" ));
-					}
-					else 
-							if (hr==DIERR_NOTACQUIRED)
-							{
-									eRetVal = RET_ERR;   //...does not call CHECKDXERROR because this is normal, it can hapens when the windows does not have the focus
-							}
-							else
-									eRetVal = CHECKDXERROR( hr, F_GETDEVICEDATA );
+				ASSERTM_ONCE( false, ("CLowInput::ReadTeclado() -> The DirectX buffer for mouse input has suffered an overflow. Change the define, carapedo" ));
 			}
-			bool bMouseMoved = false;
+			else 
+				if (hr==DIERR_NOTACQUIRED)
+				{
+					eRetVal = RET_ERR;   //...does not call CHECKDXERROR because this is normal, it can hapens when the windows does not have the focus
+				}
+				else
+					eRetVal = CHECKDXERROR( hr, F_GETDEVICEDATA );
+		}
+		bool bMouseMoved = false;
 				
-			if (m_bPendingMouseFlush && eRetVal==RET_OK)
-			{
-					MouseFlush();    // to make sure everything is cleared
-					eRetVal = RET_ERR;
-			}
+		if (m_bPendingMouseFlush && eRetVal==RET_OK)
+		{
+			MouseFlush();    // to make sure everything is cleared
+			eRetVal = RET_ERR;
+		}
 		
-			//...............read the buffer, one element each time.
-			if (eRetVal==RET_OK)
+		//...............read the buffer, one element each time.
+		if (eRetVal==RET_OK)
+		{
+			for (uint i=0; i<uNumItems; i++)
 			{
+				uint uDXCode    = Buffer[i].dwOfs;
 								
-					for (uint i=0; i<uNumItems; i++)
-					{
-							uint uDXCode    = Buffer[i].dwOfs;
-								
-							if (uDXCode==DIMOFS_X)  // mouse leftright
-							{
-									int iMove = int(Buffer[i].dwData);
-									if (g_pD3DMgr->EstaEnFullScreen())
-											iMove = int (iMove * g_pSetup->GetInfo().m_fMouseSpeed);
-									m_iMouseX += iMove;
-									CheckDrag( Buffer[i].dwTimeStamp, iMove );
-									bMouseMoved = true;
-							}
-							else if (uDXCode==DIMOFS_Y)  // mouse updown
-							{
-									int iMove = int(Buffer[i].dwData);
-									if (g_pD3DMgr->EstaEnFullScreen())
-											iMove = int( iMove * g_pSetup->GetInfo().m_fMouseSpeed );
-									m_iMouseY += iMove;
-									CheckDrag( Buffer[i].dwTimeStamp, iMove );
-									bMouseMoved = true;
-							}
-							else if (uDXCode==DIMOFS_Z)  //..mouse wheel
-							{
-									m_iMouseZ +=Buffer[i].dwData;
-									TEvent Event;
-									Event.m_eEvent  = EV_MOUSE_WHEEL;
-									Event.m_iValue  = Buffer[i].dwData;
-									AddEvent( Event );
-							}
-							else  //...is a button...
-							{
-									bool bPressed   = ( Buffer[i].dwData & 0x80 ) != 0;
-									EKey eKey       = m_KeysMgr.TransDXMouseToKey( uDXCode );
+				if (uDXCode==DIMOFS_X)  // mouse leftright
+				{
+					int iMove = int(Buffer[i].dwData);
+					if (g_pD3DMgr->EstaEnFullScreen())
+						iMove = int (iMove * g_pSetup->GetInfo().m_fMouseSpeed);
+					m_iMouseX += iMove;
+					CheckDrag( Buffer[i].dwTimeStamp, iMove );
+					bMouseMoved = true;
+				}
+				else if (uDXCode==DIMOFS_Y)  // mouse updown
+				{
+					int iMove = int(Buffer[i].dwData);
+//					if (g_pD3DMgr->EstaEnFullScreen())
+//							iMove = int( iMove * g_pSetup->GetInfo().m_fMouseSpeed );
+					m_iMouseY += iMove;
+					CheckDrag( Buffer[i].dwTimeStamp, iMove );
+					bMouseMoved = true;
+				}
+				else if (uDXCode==DIMOFS_Z)  //..mouse wheel
+				{
+					m_iMouseZ +=Buffer[i].dwData;
+					TEvent Event;
+					Event.m_eEvent  = EV_MOUSE_WHEEL;
+					Event.m_iValue  = Buffer[i].dwData;
+					AddEvent( Event );
+				}
+				else  //...is a button...
+				{
+					bool bPressed   = ( Buffer[i].dwData & 0x80 ) != 0;
+					EKey eKey       = m_KeysMgr.TransDXMouseToKey( uDXCode );
 										
-									if (bPressed) 
-									{
-											m_aKeysState[ eKey ].m_bClick   = true; 
-											m_aKeysState[ eKey ].m_bHold    = true; 
-											m_aKeysState[ eKey ].m_uTimePressed = Buffer[i].dwTimeStamp;
-											m_aToCleanClick[ m_iNumKeysToCleanClick ] = eKey;
-											m_iNumKeysToCleanClick++;
-											if (m_KeysMgr.KeyIsBuffereable( eKey ))
-													MeterEnBuffer( eKey );
-														
-											//...check if should enter the pre-dragging mode (is in predragging mode until there is enough time with the key pressed)
-											if (!m_bDragging)
-											{
-													m_eDragKey          = eKey;
-													m_bPreDragging      = true;
-													m_bStartPreDragging = true;
-													m_iMouseMovePreDrag = 0;
-											}
-											AddEventKey( eKey, Buffer[i].dwTimeStamp );                    
-									}
-									else
-									{
-											bool bCanMakeKeyStroke = !m_bDragging;
-											m_aKeysState[ eKey ].m_bHold    = false; 
-											m_bDragging                     = false;
-											m_bPreDragging                  = false;
-												
-											//....check doubleclick
-											if (eKey==m_eLastMouseButton && Buffer[i].dwTimeStamp-m_uLastTimeClick<TIME_FOR_DOUBLECLICK)
-											{
-													TEvent Event;
-													Event.m_eEvent  = EV_DOUBLE_CLICK;
-													Event.m_eKey    = eKey;
-													AddEvent( Event );
-													m_eLastMouseButton = LT_NO_KEY;
-											}
-											else  //..when is not a doubleclick
-											{
-													AddEventKey( eKey, Buffer[i].dwTimeStamp, bCanMakeKeyStroke );
-													m_eLastMouseButton  = eKey;                       // prepare in case next is a doubleclick
-													m_uLastTimeClick    = Buffer[i].dwTimeStamp;      // same
-											}
-									}
-							}
-					}
-						
-					if (bMouseMoved)
+					if (bPressed) 
 					{
-							TEvent Event;
-							Event.m_eEvent  = EV_MOUSE_MOVE;
-							AddEvent( Event );
+						m_aKeysState[ eKey ].m_bClick   = true; 
+						m_aKeysState[ eKey ].m_bHold    = true; 
+						m_aKeysState[ eKey ].m_uTimePressed = Buffer[i].dwTimeStamp;
+						m_aToCleanClick[ m_iNumKeysToCleanClick ] = eKey;
+						m_iNumKeysToCleanClick++;
+						if (m_KeysMgr.KeyIsBuffereable( eKey ))
+							MeterEnBuffer( eKey );
+														
+						//...check if should enter the pre-dragging mode (is in predragging mode until there is enough time with the key pressed)
+						if (!m_bDragging)
+						{
+							m_eDragKey          = eKey;
+							m_bPreDragging      = true;
+							m_bStartPreDragging = true;
+							m_iMouseMovePreDrag = 0;
+						}
+						AddEventKey( eKey, Buffer[i].dwTimeStamp );                    
 					}
-			}          
+					else
+					{
+						bool bCanMakeKeyStroke = !m_bDragging;
+						m_aKeysState[ eKey ].m_bHold    = false; 
+						m_bDragging                     = false;
+						m_bPreDragging                  = false;
+												
+						//....check doubleclick
+						if (eKey==m_eLastMouseButton && Buffer[i].dwTimeStamp-m_uLastTimeClick<TIME_FOR_DOUBLECLICK)
+						{
+							TEvent Event;
+							Event.m_eEvent  = EV_DOUBLE_CLICK;
+							Event.m_eKey    = eKey;
+							AddEvent( Event );
+							m_eLastMouseButton = LT_NO_KEY;
+						}
+						else  //..when is not a doubleclick
+						{
+							AddEventKey( eKey, Buffer[i].dwTimeStamp, bCanMakeKeyStroke );
+							m_eLastMouseButton  = eKey;                       // prepare in case next is a doubleclick
+							m_uLastTimeClick    = Buffer[i].dwTimeStamp;      // same
+						}
+					}
+				}
+			}
+						
+			if (bMouseMoved)
+			{
+				TEvent Event;
+				Event.m_eEvent  = EV_MOUSE_MOVE;
+				AddEvent( Event );
+			}
+		}          
 	}  
 }    
 
 
-//----------------------------------------------------------------------
-// CheckDrag
-//
+//////////////////////////////////////////////////////////////////////////
 // checks if can enter on drag mode, and if so, makes it so 
-//----------------------------------------------------------------------
 
 void CLowInput::CheckDrag( uint _uTimeStampMouseMove, uint _uMovement )
 {
-		if (m_bPreDragging)
+	if (m_bPreDragging)
+	{
+		int iMove = abs(int(_uMovement));
+		m_iMouseMovePreDrag += iMove;
+		if (_uTimeStampMouseMove-m_aKeysState[ m_eDragKey ].m_uTimePressed>TIME_FOR_DRAG ||
+			m_iMouseMovePreDrag>=MOUSEMOVE_FOR_DRAG)
 		{
-				int iMove = abs(int(_uMovement));
-				m_iMouseMovePreDrag += iMove;
-				if (_uTimeStampMouseMove-m_aKeysState[ m_eDragKey ].m_uTimePressed>TIME_FOR_DRAG ||
-						m_iMouseMovePreDrag>=MOUSEMOVE_FOR_DRAG)
-				{
-						m_bPreDragging  = false;
-						m_bDragging     = true;
-				}
+			m_bPreDragging  = false;
+			m_bDragging     = true;
 		}
+	}
 }
 
 
 
-//----------------------------------------------------------------------
-// AddEventKey
-//
+//////////////////////////////////////////////////////////////////////////
 // add a key event to the buffer event.
-//----------------------------------------------------------------------
 
 void CLowInput::AddEventKey( EKey _eKey, uint _uTimeStamp, bool _bCanMakeStroke )
 {
-		ASSERT( m_iNumEvents<SIZE_EVENTS_BUF );
-		if (m_iNumEvents<SIZE_EVENTS_BUF)
-		{
-				TEvent Event;
-				Event.m_eKey    = _eKey;
+	ASSERT( m_iNumEvents<SIZE_EVENTS_BUF );
+	if (m_iNumEvents<SIZE_EVENTS_BUF)
+	{
+		TEvent Event;
+		Event.m_eKey    = _eKey;
 				
-				if (m_aKeysState[ _eKey ].m_bHold)
-						Event.m_eEvent  = EV_KEY_DOWN;
-				else
-						Event.m_eEvent      = EV_KEY_UP;
+		if (m_aKeysState[ _eKey ].m_bHold)
+			Event.m_eEvent  = EV_KEY_DOWN;
+		else
+			Event.m_eEvent      = EV_KEY_UP;
 
-				AddEvent( Event );        
+		AddEvent( Event );        
 				
-				//...when the key is relased, it can produce a EV_KEY_STROKE event also, if the time was short enough since the press-down
-				if (Event.m_eEvent==EV_KEY_UP && _bCanMakeStroke)
-				{
+		//...when the key is relased, it can produce a EV_KEY_STROKE event also, if the time was short enough since the press-down
+		if (Event.m_eEvent==EV_KEY_UP && _bCanMakeStroke)
+		{
 //            if (_uTimeStamp - m_aKeysState[ _eKey ].m_uTimePressed <= TIME_FOR_STROKE)
-						{
-								Event.m_eEvent  = EV_KEY_STROKE;
-								AddEvent( Event );
-						}
-				}
+			{
+				Event.m_eEvent  = EV_KEY_STROKE;
+				AddEvent( Event );
+			}
 		}
+	}
 }
 
 
-//----------------------------------------------------------------------
-// AddEvent
-//
+//////////////////////////////////////////////////////////////////////////
 // add a event to the buffer event.
-//----------------------------------------------------------------------
 
 void CLowInput::AddEvent( const TEvent& _Event )
 {
-		ASSERT( m_iNumEvents<SIZE_EVENTS_BUF );
-		m_aEvents[ m_iNumEvents ] = _Event;
-		m_iNumEvents++;
+	ASSERT( m_iNumEvents<SIZE_EVENTS_BUF );
+	m_aEvents[ m_iNumEvents ] = _Event;
+	m_iNumEvents++;
 }
 
 
 
-//----------------------------------------------------------------------
-// SetSensMouse
-//
-// Establece la sensibilidad del raton en el eje x
-//----------------------------------------------------------------------
+//////////////////////////////////////////////////////////////////////////
+// sets mouse sensibility in X
 
 void CLowInput::SetSensMouse( uint uSens )
 {
-		m_fSensMouse = float(uSens) / 50.f;
+	m_fSensMouse = float(uSens) / 50.f;
 }
 
 
-//----------------------------------------------------------------------
-// NotifyWindowSetFocus
-//
+//////////////////////////////////////////////////////////////////////////
 // is called when the game window gets the focus
-//----------------------------------------------------------------------
 
 void CLowInput::NotifyWindowSetFocus()
 {
-		if (m_bInitialiced)
-		{
-				m_bPendingKeyboardFlush = true;
-				m_bPendingMouseFlush    = true;
-				Flush();
-		}
+	if (m_bInitialiced)
+	{
+		m_bPendingKeyboardFlush = true;
+		m_bPendingMouseFlush    = true;
+		Flush();
+	}
 }
 
 
-//----------------------------------------------------------------------
-// NotifyWindowKillFocus
-//
+//////////////////////////////////////////////////////////////////////////
 // is called when the game window lose the focus ( suposedly, is called always before the run )
-//----------------------------------------------------------------------
 
 void CLowInput::NotifyWindowLostFocus()
 {
-		m_bDragging         = false;
-		m_bPreDragging      = false;
+	m_bDragging         = false;
+	m_bPreDragging      = false;
 }
 
 
 
-//----------------------------------------------------------------------
-// Flush
-//
+//////////////////////////////////////////////////////////////////////////
 // read and discard all buffered input
-//----------------------------------------------------------------------
 
 void CLowInput::Flush()
 {
-		KeyboardFlush();
-		MouseFlush();
+	KeyboardFlush();
+	MouseFlush();
 }
 
 
-//----------------------------------------------------------------------
-// KeyboardFlush
-//
+//////////////////////////////////////////////////////////////////////////
 // read and discard all keyboard buffered input
-//----------------------------------------------------------------------
 
 void CLowInput::KeyboardFlush()
 {
-		AdquirirTeclado();
-		DWORD uNumItems = INFINITE;
-		HRESULT hr = m_pDeviceKeyboard->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), NULL, &uNumItems, 0 );
-		if (hr==D3D_OK)
-				m_bPendingKeyboardFlush = false;
-		m_iNumKeysToCleanClick  = 0;
-		for (int k=0; k<LT_NUM_KEYS; k++)
-		{
-				m_aKeysState[k].m_bClick    = false;    
-				m_aKeysState[k].m_bHold     = false;
-		}
+	AcquireKeyboard();
+	DWORD uNumItems = INFINITE;
+	HRESULT hr = m_pDeviceKeyboard->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), NULL, &uNumItems, 0 );
+	if (hr==D3D_OK)
+		m_bPendingKeyboardFlush = false;
+	m_iNumKeysToCleanClick  = 0;
+	for (int k=0; k<LT_NUM_KEYS; k++)
+	{
+		m_aKeysState[k].m_bClick    = false;    
+		m_aKeysState[k].m_bHold     = false;
+	}
 }
 		
-//----------------------------------------------------------------------
-// MouseFlush
-//
+//////////////////////////////////////////////////////////////////////////
 // read and discard all mouse buffered input
-//----------------------------------------------------------------------
 
 void CLowInput::MouseFlush()
 {
-		AdquirirMouse();
-		DWORD uNumItems = INFINITE;
-		HRESULT hr = m_pDeviceMouse->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), NULL, &uNumItems, 0 );
-		if (hr==D3D_OK)
-				m_bPendingMouseFlush = false;
+	AcquireMouse();
+	DWORD uNumItems = INFINITE;
+	HRESULT hr = m_pDeviceMouse->GetDeviceData( sizeof(DIDEVICEOBJECTDATA), NULL, &uNumItems, 0 );
+	if (hr==D3D_OK)
+		m_bPendingMouseFlush = false;
 }
 
 
-//----------------------------------------------------------------------
-// GetCharFromHLBuffer
-//
+//////////////////////////////////////////////////////////////////////////
 // extract a char from the HLBuffer
-//----------------------------------------------------------------------
 
 byte CLowInput::GetCharFromHLBuffer()
 {
-		byte Char = 0;
-		if (m_bHLBufferActive && m_iNumCharsInHLBuffer>0)
-		{
-				Char = m_aHLBuffer[0];
-				m_iNumCharsInHLBuffer--;
-				for (int i=0; i<m_iNumCharsInHLBuffer; i++)
-						m_aHLBuffer[i] = m_aHLBuffer[i+1];
-		}
+	byte Char = 0;
+	if (m_bHLBufferActive && m_iNumCharsInHLBuffer>0)
+	{
+		Char = m_aHLBuffer[0];
+		m_iNumCharsInHLBuffer--;
+		for (int i=0; i<m_iNumCharsInHLBuffer; i++)
+			m_aHLBuffer[i] = m_aHLBuffer[i+1];
+	}
 		
-		return Char;
+	return Char;
 }
 
 
-//----------------------------------------------------------------------
-// ActivateHLBuffer
-//
+//////////////////////////////////////////////////////////////////////////
 // extract a char from the HLBuffer
-//----------------------------------------------------------------------
 
 void CLowInput::ActivateHLBuffer( bool _bAct )
 {
-		m_bHLBufferActive       = _bAct;
-		m_iNumCharsInHLBuffer   = 0;
+	m_bHLBufferActive       = _bAct;
+	m_iNumCharsInHLBuffer   = 0;
 }

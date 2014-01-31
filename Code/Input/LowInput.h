@@ -50,9 +50,9 @@ class CLowInput
 				
 			bool                        IsKeyKeptPressed        ( EKey _EKey );
 			bool                        IsKeyPressed            ( EKey _EKey );
-			EKey                        GetKeyFromBuffer        () { EKey EKey = LT_NO_KEY; RemoveFromBuffer( &EKey ); return EKey;  }
-			void                        FlushBuffer             () { m_uPrimFree = m_uPrimFull = 0; }
-			bool                        IsBufferEmpty           () { return m_uPrimFree==m_uPrimFull; }
+			EKey                        GetKeyFromBuffer        () { EKey EKey = LT_NO_KEY; PopFromBuffer( &EKey ); return EKey;  }
+			void                        FlushBuffer             () { m_uFirstFree = m_uFirstFull = 0; }
+			bool                        IsBufferEmpty           () { return m_uFirstFree==m_uFirstFull; }
 
 			uint                        GetHInst                () { return m_hInst; }
 			EKey                        GetAnyKeyKeptPressed    ();
@@ -66,8 +66,8 @@ class CLowInput
 			void                        SetUsingMouse           ( bool bUse );
 			int                         GetMouseX               () { return m_iMouseX; }
 			int                         GetMouseY               () { return m_iMouseY; }
-			int                         GetMouseZ               () { return m_iMouseZ / m_iGranoZ; }
-			int                         WheelInc2Clicks         ( int _iWheelInc ) { return _iWheelInc / m_iGranoZ; }
+			int                         GetMouseZ               () { return m_iMouseZ / m_iGranZ; }
+			int                         WheelInc2Clicks         ( int _iWheelInc ) { return _iWheelInc / m_iGranZ; }
 			void                        SetSensMouse            ( uint uSens );
 			TEvent*                     GetEventsBuf            () { return m_aEvents; }
 			int                         GetNumEvents            () { return m_iNumEvents; }
@@ -131,7 +131,7 @@ class CLowInput
 
 			CKeysMgr                    m_KeysMgr;
 				
-			EKey                        m_aBuffer[ TAM_BUFFER_TECLADO ];
+			EKey                        m_aBuffer[ KEYBOARD_BUFFER_SIZE ];
 			uint                        m_uFirstFree;  //...to manage the keyboard circular buffer
 			uint                        m_uFirstFull;  // if m_uPrimFree==m_uPrimFull -> empty buffer
 			EModsKey                    m_eModsKey;  ///< actual modkey state. It is used for all key clicks on every tick, wich is not totally accurate
